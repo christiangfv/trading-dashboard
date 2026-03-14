@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Trading Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -30,6 +31,112 @@
       font-size: 14px;
       min-height: 100vh;
     }
+
+    /* ── LOGIN SCREEN ── */
+    #login-screen {
+      display: none;
+      min-height: 100vh;
+      background: var(--bg);
+      align-items: center;
+      justify-content: center;
+    }
+    #login-screen.active { display: flex; }
+
+    .login-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 40px 36px;
+      width: 100%;
+      max-width: 400px;
+      box-shadow: 0 25px 50px rgba(0,0,0,0.5);
+    }
+
+    .login-logo {
+      text-align: center;
+      margin-bottom: 28px;
+    }
+    .login-logo-icon { font-size: 36px; margin-bottom: 8px; }
+    .login-logo-title {
+      font-size: 22px;
+      font-weight: 700;
+      color: var(--accent);
+      letter-spacing: -0.5px;
+    }
+    .login-logo-sub {
+      font-size: 13px;
+      color: var(--muted);
+      margin-top: 4px;
+    }
+
+    .login-form { display: flex; flex-direction: column; gap: 16px; }
+
+    .form-group { display: flex; flex-direction: column; gap: 6px; }
+    .form-label {
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--muted);
+    }
+    .form-input {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 14px;
+      color: var(--text);
+      font-size: 14px;
+      font-family: inherit;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    .form-input:focus { border-color: var(--blue); }
+    .form-input::placeholder { color: var(--muted); }
+
+    .btn-login {
+      background: var(--blue);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      padding: 12px;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: inherit;
+      transition: background 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      margin-top: 4px;
+    }
+    .btn-login:hover:not(:disabled) { background: #2563eb; }
+    .btn-login:disabled { opacity: 0.6; cursor: not-allowed; }
+    .btn-login .login-spinner {
+      display: none;
+      width: 16px; height: 16px;
+      border: 2px solid rgba(255,255,255,0.3);
+      border-top-color: white;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+    }
+    .btn-login.loading .login-spinner { display: block; }
+    .btn-login.loading .login-btn-label { display: none; }
+
+    .login-error {
+      background: rgba(239,68,68,0.1);
+      border: 1px solid rgba(239,68,68,0.3);
+      border-radius: 8px;
+      padding: 10px 14px;
+      color: var(--red);
+      font-size: 13px;
+      display: none;
+    }
+    .login-error.visible { display: block; }
+
+    /* ── DASHBOARD ── */
+    #dashboard { display: none; }
+    #dashboard.active { display: block; }
 
     /* ── HEADER ── */
     header {
@@ -73,6 +180,20 @@
     .btn-refresh.loading .spinner { display: block; }
     .btn-refresh.loading .btn-label { display: none; }
     @keyframes spin { to { transform: rotate(360deg); } }
+
+    .btn-logout {
+      background: transparent;
+      color: var(--muted);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 6px 14px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: inherit;
+      transition: all 0.2s;
+    }
+    .btn-logout:hover { background: rgba(239,68,68,0.1); color: var(--red); border-color: rgba(239,68,68,0.3); }
 
     /* ── LAYOUT ── */
     main { padding: 20px 24px; max-width: 1600px; margin: 0 auto; }
@@ -245,6 +366,7 @@
       .two-col { grid-template-columns: 1fr; }
       .kpi-grid { grid-template-columns: repeat(2, 1fr); }
       .kpi-value { font-size: 20px; }
+      .login-card { margin: 16px; padding: 28px 20px; }
     }
 
     @media (max-width: 480px) {
@@ -253,6 +375,35 @@
   </style>
 </head>
 <body>
+
+<!-- ── LOGIN SCREEN ── -->
+<div id="login-screen">
+  <div class="login-card">
+    <div class="login-logo">
+      <div class="login-logo-icon">⚡</div>
+      <div class="login-logo-title">Trading Dashboard</div>
+      <div class="login-logo-sub">Acceso restringido — inicia sesión</div>
+    </div>
+    <form class="login-form" id="login-form" onsubmit="handleLogin(event)">
+      <div class="form-group">
+        <label class="form-label" for="login-email">Email</label>
+        <input class="form-input" type="email" id="login-email" placeholder="tu@email.com" required autocomplete="email" />
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="login-password">Contraseña</label>
+        <input class="form-input" type="password" id="login-password" placeholder="••••••••" required autocomplete="current-password" />
+      </div>
+      <div class="login-error" id="login-error"></div>
+      <button type="submit" class="btn-login" id="btn-login">
+        <div class="login-spinner"></div>
+        <span class="login-btn-label">Iniciar Sesión</span>
+      </button>
+    </form>
+  </div>
+</div>
+
+<!-- ── DASHBOARD ── -->
+<div id="dashboard">
 
 <header>
   <div class="header-left">
@@ -265,6 +416,7 @@
       <div class="spinner"></div>
       <span class="btn-label">↻ Refresh</span>
     </button>
+    <button class="btn-logout" onclick="handleLogout()">Cerrar sesión</button>
   </div>
 </header>
 
@@ -396,25 +548,85 @@
   </section>
 
 </main>
+</div><!-- /#dashboard -->
 
 <script>
-  const SUPABASE_URL = '%%SUPABASE_URL%%';
-  const ANON_KEY = '%%SUPABASE_KEY%%';
+  const SUPABASE_URL = 'https://supabase.fuentesvalenzuela.cl';
+  const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlzcyI6InN1cGFiYXNlIiwiaWF0IjoxNzczMDgzNTgyLCJleHAiOjE5MzA3NjM1ODJ9.5SCP24FT9MJvaO3wWNoSoQ_4k1QJ4DtswgDEekxIhZs';
 
-  const HEADERS = {
-    'apikey': ANON_KEY,
-    'Authorization': `Bearer ${ANON_KEY}`,
-    'Content-Type': 'application/json',
-  };
+  // ── SUPABASE CLIENT ────────────────────────────────────────────
+  const { createClient } = supabase;
+  const supabaseClient = createClient(SUPABASE_URL, SUPABASE_KEY);
 
+  let currentSession = null;
   let pnlChart = null;
   let countdownInterval = null;
   let secondsLeft = 60;
 
+  // ── AUTH HELPERS ──────────────────────────────────────────────
+  function showLogin() {
+    document.getElementById('login-screen').classList.add('active');
+    document.getElementById('dashboard').classList.remove('active');
+  }
+
+  function showDashboard() {
+    document.getElementById('login-screen').classList.remove('active');
+    document.getElementById('dashboard').classList.add('active');
+  }
+
+  async function handleLogin(e) {
+    e.preventDefault();
+    const email = document.getElementById('login-email').value.trim();
+    const password = document.getElementById('login-password').value;
+    const btn = document.getElementById('btn-login');
+    const errEl = document.getElementById('login-error');
+
+    btn.classList.add('loading');
+    btn.disabled = true;
+    errEl.classList.remove('visible');
+    errEl.textContent = '';
+
+    try {
+      const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+      if (error) throw error;
+      currentSession = data.session;
+      showDashboard();
+      loadAll();
+    } catch (err) {
+      errEl.textContent = err.message || 'Error al iniciar sesión. Verifica tus credenciales.';
+      errEl.classList.add('visible');
+    } finally {
+      btn.classList.remove('loading');
+      btn.disabled = false;
+    }
+  }
+
+  async function handleLogout() {
+    if (countdownInterval) clearInterval(countdownInterval);
+    await supabaseClient.auth.signOut();
+    currentSession = null;
+    showLogin();
+  }
+
+  // ── AUTH STATE CHANGE ─────────────────────────────────────────
+  supabaseClient.auth.onAuthStateChange((event, session) => {
+    currentSession = session;
+    if (event === 'SIGNED_OUT' || event === 'TOKEN_REFRESHED' && !session) {
+      if (countdownInterval) clearInterval(countdownInterval);
+      showLogin();
+    }
+  });
+
   // ── FETCH HELPER ──────────────────────────────────────────────
   async function supaFetch(table, params = '') {
+    const token = currentSession?.access_token || SUPABASE_KEY;
+    const headers = {
+      'apikey': SUPABASE_KEY,
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    };
     try {
-      const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}${params}`, { headers: HEADERS });
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}${params}`, { headers });
       if (!res.ok) {
         console.error(`Supabase error [${table}]:`, res.status, await res.text());
         return [];
@@ -482,14 +694,12 @@
     document.getElementById('kpi-total').textContent = fmt.usd(p.total_value_usd);
     document.getElementById('kpi-futures').textContent = fmt.usd(p.futures_balance);
 
-    // Cumulative PnL from latest daily metric
     const latestMetric = dailyMetrics[0] || {};
     const pnlVal = latestMetric.cumulative_pnl;
     const pnlEl = document.getElementById('kpi-pnl');
     pnlEl.textContent = fmt.usd(pnlVal);
     pnlEl.className = `kpi-value ${pnlClass(pnlVal)}`;
 
-    // Win rate from daily metrics
     let totalWins = 0, totalLosses = 0;
     dailyMetrics.forEach(d => {
       totalWins += (d.wins || 0);
@@ -499,10 +709,7 @@
     const winRate = totalGames > 0 ? ((totalWins / totalGames) * 100).toFixed(1) : null;
     document.getElementById('kpi-winrate').textContent = winRate != null ? `${winRate}%` : '—';
 
-    // Total trades
     document.getElementById('kpi-trades').textContent = fmt.num(allTrades.length);
-
-    // Open positions
     document.getElementById('kpi-open').textContent = fmt.num(openTrades.length);
   }
 
@@ -715,7 +922,6 @@
       btn.disabled = false;
     }
 
-    // Reset countdown
     resetCountdown();
   }
 
@@ -734,8 +940,15 @@
   }
 
   // ── INIT ──────────────────────────────────────────────────────
-  window.addEventListener('DOMContentLoaded', () => {
-    loadAll();
+  window.addEventListener('DOMContentLoaded', async () => {
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    if (session) {
+      currentSession = session;
+      showDashboard();
+      loadAll();
+    } else {
+      showLogin();
+    }
   });
 </script>
 </body>
