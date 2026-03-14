@@ -1,0 +1,742 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Trading Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0f172a;
+      --card: #1e293b;
+      --card2: #263348;
+      --border: #334155;
+      --text: #f1f5f9;
+      --muted: #94a3b8;
+      --green: #22c55e;
+      --red: #ef4444;
+      --blue: #3b82f6;
+      --yellow: #f59e0b;
+      --purple: #a855f7;
+      --accent: #38bdf8;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
+      font-size: 14px;
+      min-height: 100vh;
+    }
+
+    /* ── HEADER ── */
+    header {
+      background: var(--card);
+      border-bottom: 1px solid var(--border);
+      padding: 14px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .header-left { display: flex; align-items: center; gap: 12px; }
+    .header-logo { font-size: 20px; font-weight: 700; color: var(--accent); letter-spacing: -0.5px; }
+    .header-logo span { color: var(--muted); font-weight: 400; font-size: 13px; margin-left: 6px; }
+
+    .header-right { display: flex; align-items: center; gap: 12px; }
+    #last-update { color: var(--muted); font-size: 12px; }
+
+    .btn-refresh {
+      background: var(--blue);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      padding: 7px 16px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: background 0.2s;
+    }
+    .btn-refresh:hover { background: #2563eb; }
+    .btn-refresh:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-refresh .spinner { display: none; width: 14px; height: 14px; border: 2px solid rgba(255,255,255,0.3); border-top-color: white; border-radius: 50%; animation: spin 0.7s linear infinite; }
+    .btn-refresh.loading .spinner { display: block; }
+    .btn-refresh.loading .btn-label { display: none; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── LAYOUT ── */
+    main { padding: 20px 24px; max-width: 1600px; margin: 0 auto; }
+
+    section { margin-bottom: 28px; }
+    .section-title {
+      font-size: 13px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .section-title::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+    /* ── KPI CARDS ── */
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      gap: 12px;
+    }
+
+    .kpi-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      transition: border-color 0.2s;
+    }
+    .kpi-card:hover { border-color: var(--accent); }
+    .kpi-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); }
+    .kpi-value { font-size: 24px; font-weight: 700; line-height: 1.1; }
+    .kpi-sub { font-size: 11px; color: var(--muted); }
+    .kpi-icon { font-size: 18px; align-self: flex-end; opacity: 0.6; }
+
+    .text-green { color: var(--green); }
+    .text-red { color: var(--red); }
+    .text-blue { color: var(--blue); }
+    .text-yellow { color: var(--yellow); }
+    .text-accent { color: var(--accent); }
+
+    /* ── CHART ── */
+    .chart-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+    }
+    .chart-card canvas { max-height: 280px; }
+
+    /* ── TABLES ── */
+    .table-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+
+    .table-scroll { overflow-x: auto; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+
+    thead th {
+      background: var(--card2);
+      padding: 10px 14px;
+      text-align: left;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--muted);
+      white-space: nowrap;
+      border-bottom: 1px solid var(--border);
+    }
+
+    tbody tr {
+      border-bottom: 1px solid rgba(51, 65, 85, 0.5);
+      transition: background 0.15s;
+    }
+    tbody tr:last-child { border-bottom: none; }
+    tbody tr:hover { background: rgba(255,255,255,0.03); }
+
+    td {
+      padding: 10px 14px;
+      white-space: nowrap;
+      vertical-align: middle;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+    .badge-long { background: rgba(34,197,94,0.15); color: var(--green); }
+    .badge-short { background: rgba(239,68,68,0.15); color: var(--red); }
+    .badge-buy { background: rgba(34,197,94,0.15); color: var(--green); }
+    .badge-sell { background: rgba(239,68,68,0.15); color: var(--red); }
+    .badge-active { background: rgba(59,130,246,0.15); color: var(--blue); }
+    .badge-closed { background: rgba(148,163,184,0.15); color: var(--muted); }
+
+    .row-long td:first-child { border-left: 3px solid var(--green); }
+    .row-short td:first-child { border-left: 3px solid var(--red); }
+
+    /* ── TWO COLUMN LAYOUT ── */
+    .two-col {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+
+    /* ── EMPTY STATE ── */
+    .empty-state {
+      padding: 40px;
+      text-align: center;
+      color: var(--muted);
+      font-size: 13px;
+    }
+    .empty-state .empty-icon { font-size: 32px; margin-bottom: 8px; opacity: 0.5; }
+
+    /* ── LOADING ── */
+    .skeleton {
+      background: linear-gradient(90deg, var(--card2) 25%, var(--border) 50%, var(--card2) 75%);
+      background-size: 200% 100%;
+      animation: shimmer 1.5s infinite;
+      border-radius: 6px;
+      height: 20px;
+    }
+    @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+
+    /* ── COUNTDOWN ── */
+    #countdown {
+      background: rgba(59,130,246,0.1);
+      border: 1px solid rgba(59,130,246,0.3);
+      border-radius: 999px;
+      padding: 3px 10px;
+      font-size: 11px;
+      color: var(--blue);
+      font-weight: 600;
+    }
+
+    /* ── SCORE BAR ── */
+    .score-bar { display: flex; align-items: center; gap: 6px; }
+    .score-bg {
+      flex: 1;
+      height: 6px;
+      background: var(--border);
+      border-radius: 3px;
+      overflow: hidden;
+      min-width: 60px;
+    }
+    .score-fill { height: 100%; border-radius: 3px; background: var(--accent); transition: width 0.3s; }
+
+    /* ── RESPONSIVE ── */
+    @media (max-width: 768px) {
+      main { padding: 12px; }
+      .two-col { grid-template-columns: 1fr; }
+      .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+      .kpi-value { font-size: 20px; }
+    }
+
+    @media (max-width: 480px) {
+      .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="header-left">
+    <div class="header-logo">⚡ Trading Dashboard <span>v1.0</span></div>
+  </div>
+  <div class="header-right">
+    <span id="countdown">60s</span>
+    <span id="last-update">—</span>
+    <button class="btn-refresh" id="btn-refresh" onclick="loadAll()">
+      <div class="spinner"></div>
+      <span class="btn-label">↻ Refresh</span>
+    </button>
+  </div>
+</header>
+
+<main>
+
+  <!-- KPI CARDS -->
+  <section>
+    <div class="section-title">📊 Portfolio Overview</div>
+    <div class="kpi-grid" id="kpi-grid">
+      <div class="kpi-card"><div class="kpi-label">Portfolio Total</div><div class="kpi-value text-accent" id="kpi-total">—</div><div class="kpi-sub">USD total</div></div>
+      <div class="kpi-card"><div class="kpi-label">Futures Balance</div><div class="kpi-value text-blue" id="kpi-futures">—</div><div class="kpi-sub">USDT</div></div>
+      <div class="kpi-card"><div class="kpi-label">Cumulative PnL</div><div class="kpi-value" id="kpi-pnl">—</div><div class="kpi-sub">All time</div></div>
+      <div class="kpi-card"><div class="kpi-label">Win Rate</div><div class="kpi-value text-yellow" id="kpi-winrate">—</div><div class="kpi-sub">From daily metrics</div></div>
+      <div class="kpi-card"><div class="kpi-label">Total Trades</div><div class="kpi-value" id="kpi-trades">—</div><div class="kpi-sub">All trades</div></div>
+      <div class="kpi-card"><div class="kpi-label">Open Positions</div><div class="kpi-value text-green" id="kpi-open">—</div><div class="kpi-sub">Active now</div></div>
+    </div>
+  </section>
+
+  <!-- PNL CHART -->
+  <section>
+    <div class="section-title">📈 Cumulative PnL</div>
+    <div class="chart-card">
+      <canvas id="pnl-chart"></canvas>
+    </div>
+  </section>
+
+  <!-- OPEN POSITIONS + ACTIVE SIGNALS -->
+  <div class="two-col">
+    <section>
+      <div class="section-title">🟢 Open Positions</div>
+      <div class="table-card">
+        <div class="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>Pair</th>
+                <th>Side</th>
+                <th>Lev</th>
+                <th>Entry</th>
+                <th>Stop</th>
+                <th>TP1</th>
+                <th>Time</th>
+              </tr>
+            </thead>
+            <tbody id="open-positions-body">
+              <tr><td colspan="7"><div class="empty-state"><div class="empty-icon">📭</div>Loading...</div></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <div class="section-title">🎯 Active Signals</div>
+      <div class="table-card">
+        <div class="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>Pair</th>
+                <th>Dir</th>
+                <th>Score</th>
+                <th>Conf</th>
+                <th>RR</th>
+                <th>Entry</th>
+                <th>Setup</th>
+                <th>Time</th>
+              </tr>
+            </thead>
+            <tbody id="signals-body">
+              <tr><td colspan="8"><div class="empty-state"><div class="empty-icon">📭</div>Loading...</div></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <!-- RECENT TRADES -->
+  <section>
+    <div class="section-title">🔄 Recent Trades (last 20 closed)</div>
+    <div class="table-card">
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Pair</th>
+              <th>Side</th>
+              <th>PnL (USD)</th>
+              <th>PnL (%)</th>
+              <th>Duration</th>
+              <th>Entry Time</th>
+              <th>Exit Time</th>
+              <th>Strategy</th>
+            </tr>
+          </thead>
+          <tbody id="trades-body">
+            <tr><td colspan="8"><div class="empty-state"><div class="empty-icon">📭</div>Loading...</div></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- DAILY METRICS -->
+  <section>
+    <div class="section-title">📅 Daily Metrics (last 14 days)</div>
+    <div class="table-card">
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Net PnL</th>
+              <th>Wins</th>
+              <th>Losses</th>
+              <th>Fees Paid</th>
+              <th>Capital End</th>
+              <th>Trades</th>
+              <th>Drawdown</th>
+            </tr>
+          </thead>
+          <tbody id="daily-body">
+            <tr><td colspan="8"><div class="empty-state"><div class="empty-icon">📭</div>Loading...</div></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<script>
+  const SUPABASE_URL = 'https://supabase.fuentesvalenzuela.cl';
+  const ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlzcyI6InN1cGFiYXNlIiwiaWF0IjoxNzczMDgzNTgyLCJleHAiOjE5MzA3NjM1ODJ9.5SCP24FT9MJvaO3wWNoSoQ_4k1QJ4DtswgDEekxIhZs';
+
+  const HEADERS = {
+    'apikey': ANON_KEY,
+    'Authorization': `Bearer ${ANON_KEY}`,
+    'Content-Type': 'application/json',
+  };
+
+  let pnlChart = null;
+  let countdownInterval = null;
+  let secondsLeft = 60;
+
+  // ── FETCH HELPER ──────────────────────────────────────────────
+  async function supaFetch(table, params = '') {
+    try {
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}${params}`, { headers: HEADERS });
+      if (!res.ok) {
+        console.error(`Supabase error [${table}]:`, res.status, await res.text());
+        return [];
+      }
+      return await res.json();
+    } catch (e) {
+      console.error(`Fetch error [${table}]:`, e);
+      return [];
+    }
+  }
+
+  // ── FORMATTERS ────────────────────────────────────────────────
+  const fmt = {
+    usd: v => v == null ? '—' : `$${Number(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+    pct: v => v == null ? '—' : `${Number(v).toFixed(2)}%`,
+    num: v => v == null ? '—' : Number(v).toLocaleString('en-US'),
+    price: v => v == null ? '—' : Number(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 4 }),
+    date: v => {
+      if (!v) return '—';
+      try { return new Date(v).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' }); }
+      catch { return v; }
+    },
+    datetime: v => {
+      if (!v) return '—';
+      try { return new Date(v).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }); }
+      catch { return v; }
+    },
+    dur: v => v == null ? '—' : `${Number(v).toFixed(1)}h`,
+    lev: v => v == null ? '—' : `${v}x`,
+  };
+
+  function pnlClass(v) {
+    if (v == null) return '';
+    return Number(v) >= 0 ? 'text-green' : 'text-red';
+  }
+
+  function sideClass(side) {
+    const s = (side || '').toLowerCase();
+    if (s === 'long' || s === 'buy') return 'badge-long';
+    if (s === 'short' || s === 'sell') return 'badge-short';
+    return '';
+  }
+
+  function dirClass(dir) {
+    const d = (dir || '').toLowerCase();
+    if (d === 'long' || d === 'buy') return 'badge-long';
+    if (d === 'short' || d === 'sell') return 'badge-short';
+    return '';
+  }
+
+  function emptyRow(cols, msg = 'No data') {
+    return `<tr><td colspan="${cols}"><div class="empty-state"><div class="empty-icon">📭</div>${msg}</div></td></tr>`;
+  }
+
+  // ── KPI SECTION ───────────────────────────────────────────────
+  async function loadKPIs() {
+    const [portfolio, openTrades, allTrades, dailyMetrics] = await Promise.all([
+      supaFetch('portfolio', '?order=created_at.desc&limit=1'),
+      supaFetch('trades', '?status=eq.open'),
+      supaFetch('trades', '?select=id'),
+      supaFetch('daily_metrics', '?order=date.desc&limit=30'),
+    ]);
+
+    const p = portfolio[0] || {};
+    document.getElementById('kpi-total').textContent = fmt.usd(p.total_value_usd);
+    document.getElementById('kpi-futures').textContent = fmt.usd(p.futures_balance);
+
+    // Cumulative PnL from latest daily metric
+    const latestMetric = dailyMetrics[0] || {};
+    const pnlVal = latestMetric.cumulative_pnl;
+    const pnlEl = document.getElementById('kpi-pnl');
+    pnlEl.textContent = fmt.usd(pnlVal);
+    pnlEl.className = `kpi-value ${pnlClass(pnlVal)}`;
+
+    // Win rate from daily metrics
+    let totalWins = 0, totalLosses = 0;
+    dailyMetrics.forEach(d => {
+      totalWins += (d.wins || 0);
+      totalLosses += (d.losses || 0);
+    });
+    const totalGames = totalWins + totalLosses;
+    const winRate = totalGames > 0 ? ((totalWins / totalGames) * 100).toFixed(1) : null;
+    document.getElementById('kpi-winrate').textContent = winRate != null ? `${winRate}%` : '—';
+
+    // Total trades
+    document.getElementById('kpi-trades').textContent = fmt.num(allTrades.length);
+
+    // Open positions
+    document.getElementById('kpi-open').textContent = fmt.num(openTrades.length);
+  }
+
+  // ── PNL CHART ─────────────────────────────────────────────────
+  async function loadChart() {
+    const data = await supaFetch('daily_metrics', '?order=date.asc&limit=90');
+
+    const labels = data.map(d => d.date ? fmt.date(d.date) : '');
+    const values = data.map(d => d.cumulative_pnl ?? 0);
+
+    const lastVal = values[values.length - 1] ?? 0;
+    const lineColor = lastVal >= 0 ? '#22c55e' : '#ef4444';
+    const fillColor = lastVal >= 0 ? 'rgba(34,197,94,0.12)' : 'rgba(239,68,68,0.12)';
+
+    const ctx = document.getElementById('pnl-chart').getContext('2d');
+
+    if (pnlChart) {
+      pnlChart.destroy();
+      pnlChart = null;
+    }
+
+    if (!data.length) {
+      ctx.canvas.parentElement.innerHTML = '<div class="empty-state"><div class="empty-icon">📈</div>No PnL data available</div>';
+      return;
+    }
+
+    pnlChart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [{
+          label: 'Cumulative PnL (USD)',
+          data: values,
+          borderColor: lineColor,
+          backgroundColor: fillColor,
+          borderWidth: 2,
+          pointRadius: data.length > 30 ? 0 : 3,
+          pointHoverRadius: 5,
+          pointBackgroundColor: lineColor,
+          fill: true,
+          tension: 0.3,
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: true,
+        interaction: { mode: 'index', intersect: false },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            backgroundColor: '#1e293b',
+            borderColor: '#334155',
+            borderWidth: 1,
+            titleColor: '#94a3b8',
+            bodyColor: '#f1f5f9',
+            callbacks: {
+              label: ctx => `PnL: ${fmt.usd(ctx.parsed.y)}`
+            }
+          }
+        },
+        scales: {
+          x: {
+            ticks: { color: '#64748b', maxTicksLimit: 10, font: { size: 11 } },
+            grid: { color: 'rgba(51,65,85,0.4)' },
+            border: { color: '#334155' }
+          },
+          y: {
+            ticks: {
+              color: '#64748b',
+              font: { size: 11 },
+              callback: v => `$${v >= 1000 ? (v/1000).toFixed(1)+'k' : v}`
+            },
+            grid: { color: 'rgba(51,65,85,0.4)' },
+            border: { color: '#334155' }
+          }
+        }
+      }
+    });
+  }
+
+  // ── OPEN POSITIONS ────────────────────────────────────────────
+  async function loadOpenPositions() {
+    const data = await supaFetch('trades', '?status=eq.open&order=entry_time.desc');
+    const tbody = document.getElementById('open-positions-body');
+
+    if (!data.length) {
+      tbody.innerHTML = emptyRow(7, 'No open positions');
+      return;
+    }
+
+    tbody.innerHTML = data.map(t => {
+      const sc = (t.side || '').toLowerCase() === 'long' ? 'row-long' : 'row-short';
+      return `<tr class="${sc}">
+        <td><strong>${t.pair || '—'}</strong></td>
+        <td><span class="badge ${sideClass(t.side)}">${t.side || '—'}</span></td>
+        <td>${fmt.lev(t.leverage)}</td>
+        <td>${fmt.price(t.entry_price)}</td>
+        <td class="text-red">${fmt.price(t.stop_loss)}</td>
+        <td class="text-green">${fmt.price(t.take_profit_1)}</td>
+        <td>${fmt.datetime(t.entry_time)}</td>
+      </tr>`;
+    }).join('');
+  }
+
+  // ── SIGNALS ───────────────────────────────────────────────────
+  async function loadSignals() {
+    const data = await supaFetch('signals', '?status=eq.active&order=score.desc&limit=20');
+    const tbody = document.getElementById('signals-body');
+
+    if (!data.length) {
+      tbody.innerHTML = emptyRow(8, 'No active signals');
+      return;
+    }
+
+    tbody.innerHTML = data.map(s => {
+      const score = s.score != null ? Number(s.score) : null;
+      const scorePct = score != null ? Math.min(100, Math.max(0, score * 10)) : 0;
+      const scoreBar = score != null
+        ? `<div class="score-bar"><div class="score-bg"><div class="score-fill" style="width:${scorePct}%"></div></div><span>${score.toFixed(1)}</span></div>`
+        : '—';
+
+      const conf = s.confidence != null ? `${Number(s.confidence).toFixed(0)}%` : '—';
+
+      return `<tr>
+        <td><strong>${s.pair || '—'}</strong></td>
+        <td><span class="badge ${dirClass(s.direction)}">${s.direction || '—'}</span></td>
+        <td>${scoreBar}</td>
+        <td>${conf}</td>
+        <td>${s.rr_ratio != null ? Number(s.rr_ratio).toFixed(2) : '—'}</td>
+        <td>${fmt.price(s.suggested_entry)}</td>
+        <td style="color:var(--muted);font-size:12px">${s.setup_type || '—'}</td>
+        <td>${fmt.datetime(s.created_at)}</td>
+      </tr>`;
+    }).join('');
+  }
+
+  // ── RECENT TRADES ─────────────────────────────────────────────
+  async function loadRecentTrades() {
+    const data = await supaFetch('trades', '?status=eq.closed&order=exit_time.desc&limit=20');
+    const tbody = document.getElementById('trades-body');
+
+    if (!data.length) {
+      tbody.innerHTML = emptyRow(8, 'No closed trades');
+      return;
+    }
+
+    tbody.innerHTML = data.map(t => {
+      const pnlCls = pnlClass(t.pnl_usd);
+      return `<tr>
+        <td><strong>${t.pair || '—'}</strong></td>
+        <td><span class="badge ${sideClass(t.side)}">${t.side || '—'}</span></td>
+        <td class="${pnlCls}">${fmt.usd(t.pnl_usd)}</td>
+        <td class="${pnlClass(t.pnl_pct)}">${fmt.pct(t.pnl_pct)}</td>
+        <td>${fmt.dur(t.duration_hours)}</td>
+        <td>${fmt.datetime(t.entry_time)}</td>
+        <td>${fmt.datetime(t.exit_time)}</td>
+        <td style="color:var(--muted);font-size:12px">${t.strategy || '—'}</td>
+      </tr>`;
+    }).join('');
+  }
+
+  // ── DAILY METRICS ─────────────────────────────────────────────
+  async function loadDailyMetrics() {
+    const data = await supaFetch('daily_metrics', '?order=date.desc&limit=14');
+    const tbody = document.getElementById('daily-body');
+
+    if (!data.length) {
+      tbody.innerHTML = emptyRow(8, 'No daily metrics');
+      return;
+    }
+
+    tbody.innerHTML = data.map(d => {
+      const pnlCls = pnlClass(d.net_pnl);
+      const total = (d.wins || 0) + (d.losses || 0);
+      return `<tr>
+        <td><strong>${fmt.date(d.date)}</strong></td>
+        <td class="${pnlCls}">${fmt.usd(d.net_pnl)}</td>
+        <td class="text-green">${d.wins ?? '—'}</td>
+        <td class="text-red">${d.losses ?? '—'}</td>
+        <td class="text-muted">${fmt.usd(d.fees_paid)}</td>
+        <td>${fmt.usd(d.capital_end)}</td>
+        <td>${total > 0 ? total : '—'}</td>
+        <td class="text-red">${d.max_drawdown_pct != null ? fmt.pct(d.max_drawdown_pct) : '—'}</td>
+      </tr>`;
+    }).join('');
+  }
+
+  // ── LOAD ALL ──────────────────────────────────────────────────
+  async function loadAll() {
+    const btn = document.getElementById('btn-refresh');
+    btn.classList.add('loading');
+    btn.disabled = true;
+
+    try {
+      await Promise.all([
+        loadKPIs(),
+        loadChart(),
+        loadOpenPositions(),
+        loadSignals(),
+        loadRecentTrades(),
+        loadDailyMetrics(),
+      ]);
+
+      const now = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      document.getElementById('last-update').textContent = `Updated ${now}`;
+    } catch (e) {
+      console.error('loadAll error:', e);
+    } finally {
+      btn.classList.remove('loading');
+      btn.disabled = false;
+    }
+
+    // Reset countdown
+    resetCountdown();
+  }
+
+  // ── AUTO-REFRESH COUNTDOWN ────────────────────────────────────
+  function resetCountdown() {
+    secondsLeft = 60;
+    if (countdownInterval) clearInterval(countdownInterval);
+    countdownInterval = setInterval(() => {
+      secondsLeft--;
+      document.getElementById('countdown').textContent = `${secondsLeft}s`;
+      if (secondsLeft <= 0) {
+        clearInterval(countdownInterval);
+        loadAll();
+      }
+    }, 1000);
+  }
+
+  // ── INIT ──────────────────────────────────────────────────────
+  window.addEventListener('DOMContentLoaded', () => {
+    loadAll();
+  });
+</script>
+</body>
+</html>
